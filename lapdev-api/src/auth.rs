@@ -14,6 +14,7 @@ use crate::gitlab::GitlabClient;
 pub struct AuthConfig {
     pub client_id: &'static str,
     pub client_secret: &'static str,
+    pub base_url: &'static str,
     pub auth_url: &'static str,
     pub token_url: &'static str,
     pub scopes: &'static [&'static str],
@@ -25,8 +26,9 @@ impl AuthConfig {
     pub const GITHUB: Self = AuthConfig {
         client_id: "github-client-id",
         client_secret: "github-client-secret",
-        auth_url: "https://github.com/login/oauth/authorize",
-        token_url: "https://github.com/login/oauth/access_token",
+        base_url: "https://github.com",
+        auth_url: "/login/oauth/authorize",
+        token_url: "/login/oauth/access_token",
         scopes: &["read:user", "user:email"],
         read_repo_scope: "repo",
         read_repo_scopes: &["read:user", "user:email", "repo"],
@@ -34,8 +36,19 @@ impl AuthConfig {
     pub const GITLAB: Self = AuthConfig {
         client_id: "gitlab-client-id",
         client_secret: "gitlab-client-secret",
-        auth_url: "https://gitlab.com/oauth/authorize",
-        token_url: "https://gitlab.com/oauth/token",
+        base_url: "https://gitlab.com",
+        auth_url: "/oauth/authorize",
+        token_url: "/oauth/token",
+        scopes: &["read_user"],
+        read_repo_scope: "read_repository",
+        read_repo_scopes: &["read_user", "read_repository"],
+    };
+    pub const GITLAB_SELF: Self = AuthConfig {
+        client_id: "gitlab-client-id",
+        client_secret: "gitlab-client-secret",
+        base_url: "https://gitlab.com",
+        auth_url: "/oauth/authorize",
+        token_url: "/oauth/token",
         scopes: &["read_user"],
         read_repo_scope: "read_repository",
         read_repo_scopes: &["read_user", "read_repository"],
@@ -49,8 +62,10 @@ pub struct Auth {
 
 impl Auth {
     pub async fn new(db: &DbApi) -> Self {
+        let mut clients = Self::get_clients(db).await;
+        // let AuthGithub = clients.get(&AuthProvider::GitlabSelf);
         Self {
-            clients: RwLock::new(Self::get_clients(db).await),
+            clients: RwLock::new(clients),
             gitlab_client: GitlabClient::new(),
         }
     }
@@ -68,6 +83,9 @@ impl Auth {
         if let Ok(client) = Self::build_auth(db, &AuthConfig::GITLAB).await {
             clients.insert(AuthProvider::Gitlab, (client, AuthConfig::GITLAB));
         }
+        if let Ok(client) = Self::build_auth(db, &AuthConfig::GITLAB_SELF).await {
+            clients.insert(AuthProvider::GitlabSelf, (client, AuthConfig::GITLAB_SELF));
+        }
         clients
     }
 
@@ -81,8 +99,10 @@ impl Auth {
         let client = BasicClient::new(
             ClientId::new(client_id),
             Some(ClientSecret::new(client_secret)),
-            AuthUrl::new(config.auth_url.to_string())?,
-            Some(TokenUrl::new(config.token_url.to_string())?),
+            AuthUrl::new(config.base_url.to_string().push_str(config.auth_url))?,
+            Some(TokenUrl::new(
+                config.base_url.to_string().push_str(config.token_url),
+            )?),
         );
         Ok(client)
     }

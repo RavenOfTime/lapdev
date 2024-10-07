@@ -167,6 +167,16 @@ pub(crate) async fn session_authorize(
                 avatar_url: user.avatar_url,
             }
         }
+        AuthProvider::GitlabSelf => {
+            let user = state.auth.gitlab_client.current_user(&token).await?;
+            ProviderUser {
+                id: user.id,
+                login: user.username,
+                email: user.email,
+                name: user.name,
+                avatar_url: user.avatar_url,
+            }
+        }
     };
 
     if query.connect_provider.as_deref() == Some("yes") {

@@ -267,6 +267,7 @@ pub enum WorkspaceHostStatus {
 pub enum AuthProvider {
     Github,
     Gitlab,
+    GitlabSelf,
 }
 
 #[derive(
